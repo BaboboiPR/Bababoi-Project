@@ -74,3 +74,20 @@ func _on_timer_timeout():
 # Scene change on second timer timeout
 func _on_timer_2_timeout():
     var error = get_tree().change_scene_to_file("res://3d/world.tscn")
+func _ready():
+    $Timer.start(1.0)  # Perform action every second
+    $Timer.connect("timeout", self, "_on_timer_tick")
+
+func _on_timer_tick():
+    # Do something every second
+func _on_timer_timeout():
+    var error = get_tree().change_scene_to_file("res://scenes/menu.tscn")
+    
+    # Check for scene change errors and handle them
+    if error != OK:
+        print("Failed to change scene: ", error)
+        # Show an error message to the player or log it
+        # Optionally restart the current scene to recover
+        var retry_error = get_tree().reload_current_scene()
+        if retry_error != OK:
+            print("Failed to reload scene: ", retry_error)
