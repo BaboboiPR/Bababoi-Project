@@ -62,32 +62,3 @@ func _on_timer_timeout():
 
 func _on_timer_2_timeout():
 	var error = get_tree().change_scene_to_file("res://3d/world.tscn")
-func change_scene(scene_path):
-    var error = get_tree().change_scene_to_file(scene_path)
-    if error != OK:
-        print("Failed to load scene: ", scene_path)
-
-func _on_timer_timeout():
-    change_scene("res://scenes/menu.tscn")
-
-func _on_timer_2_timeout():
-    change_scene("res://3d/world.tscn")
-var input_mappings = {
-    "ui_e": ["new_animation_2", $Timer2],
-    "ui_f": ["new_animation_3", $Timer]
-}
-
-func _process(delta):
-    for action in input_mappings.keys():
-        if Input.is_action_pressed(action):
-            input_mappings[action][1].start()
-            play(input_mappings[action][0])
-func play_animation(animation_name: String):
-    if has_animation(animation_name):
-        play(animation_name)
-    else:
-        print("Animation not found: ", animation_name)
-
-func _on_button_pressed():
-
-    play_animation("new_animation")
