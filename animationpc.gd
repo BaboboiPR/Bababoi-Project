@@ -91,3 +91,16 @@ func _on_timer_timeout():
         var retry_error = get_tree().reload_current_scene()
         if retry_error != OK:
             print("Failed to reload scene: ", retry_error)
+func _ready():
+    Engine.target_fps = 300  # Limit the game to 300 FPS
+    $Timer.start(1.0)
+    $Timer.connect("timeout", self, "_on_timer_tick")
+var input_cooldown = 0.5  # Half a second cooldown between inputs
+var last_input_time = 0.0
+
+func _process(delta):
+    var current_time = OS.get_ticks_msec() / 1000.0
+    if Input.is_action_pressed("ui_e") and current_time - last_input_time > input_cooldown:
+        last_input_time = current_time
+        timer2.start()
+        play("new_animation_2")
