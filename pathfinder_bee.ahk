@@ -1,22 +1,28 @@
-; Set boundary limits (22x26 area)
+; Define global variables for image boundaries
+boundaryX := 0
+boundaryY := 0
+boundaryWidth := 0
+boundaryHeight := 0
+isPriorityBuffActive := false  ; Initialize the priority buff status
+
+; Set default boundary limits
 minX := 100  ; Minimum X boundary
 maxX := 800  ; Maximum X boundary
 minY := 100  ; Minimum Y boundary
 maxY := 600  ; Maximum Y boundary
 
+; Define a timeout variable for buff searching
+buffTimeout := 5000  ; Timeout in milliseconds
+buffStartTime := 0
+
+; Timer for pressing key [1]
+SetTimer, PressOne, 3500  ; Press [1] every 3.5 seconds
+
 ; Toggle auto-click when pressing "F"
 $f::
-    isAutoClicking := !isAutoClicking  ; Toggle the state
-    if isAutoClicking
-    {
-        ToolTip Auto-clicking Enabled
-        SetTimer, AutoClick, 100  ; Set the auto-click interval (100ms)
-    }
-    else
-    {
-        ToolTip Auto-clicking Disabled
-        SetTimer, AutoClick, Off  ; Turn off auto-clicking
-    }
+    isAutoClicking := !isAutoClicking  ; Toggle state
+    ToolTip % isAutoClicking ? "Auto-clicking Enabled" : "Auto-clicking Disabled"
+    SetTimer, AutoClick, % isAutoClicking ? 50 : "Off"  ; Faster auto-click
     Sleep 1000
     ToolTip  ; Clear tooltip
     return
@@ -28,115 +34,156 @@ AutoClick:
 
 ; Toggle automatic movement when pressing "Z"
 $z::
-    isAutoMoving := !isAutoMoving  ; Toggle the state
-    if isAutoMoving
-    {
-        ToolTip Auto-moving Enabled
-        SetTimer, AutoMove, 2000  ; Set the movement interval (2s)
-    }
-    else
-    {
-        ToolTip Auto-moving Disabled
-        SetTimer, AutoMove, Off  ; Turn off movement
-    }
+    isAutoMoving := !isAutoMoving  ; Toggle state
+    ToolTip % isAutoMoving ? "Auto-moving Enabled" : "Auto-moving Disabled"
+    SetTimer, AutoMove, % isAutoMoving ? 500 : "Off"  ; Faster auto-move
     Sleep 1000
     ToolTip  ; Clear tooltip
     return
 
-; Movement pattern logic
+; Random movement logic
 AutoMove:
     Random, moveDir, 1, 4  ; Randomize movement direction
     MoveInDirection(moveDir)
     return
 
-; Function for directional movement using W, A, S, D while staying within boundary
+; Function for directional movement while staying within boundaries
 MoveInDirection(dir) {
-    MouseGetPos, currentX, currentY  ; Get current position of the character
+    MouseGetPos, currentX, currentY  ; Get current position
 
-    ; Check if the character is within the boundary before moving
-    if (dir = 1 && currentY > minY)  ; Move forward (W) only if within boundary
-        Send {w down}, Sleep 1000, Send {w up}
-    else if (dir = 2 && currentX > minX)  ; Move left (A) only if within boundary
-        Send {a down}, Sleep 1000, Send {a up}
-    else if (dir = 3 && currentY < maxY)  ; Move backward (S) only if within boundary
-        Send {s down}, Sleep 1000, Send {s up}
-    else if (dir = 4 && currentX < maxX)  ; Move right (D) only if within boundary
-        Send {d down}, Sleep 1000, Send {d up}
+    ; Determine boundaries to use (image or default)
+    if (boundaryWidth > 0 && boundaryHeight > 0) {  ; If image boundaries are defined
+        validMove := (currentY > boundaryY) ? (dir = 1) : (currentX > boundaryX && dir = 2) ? (currentY < (boundaryY + boundaryHeight) && dir = 3) : (currentX < (boundaryX + boundaryWidth) && dir = 4)
+    } else {
+        validMove := (currentY > minY && dir = 1) || (currentX > minX && dir = 2) || (currentY < maxY && dir = 3) || (currentX < maxX && dir = 4)
+    }
+
+    if (validMove) {
+        ; Simulate movement using W, A, S, D with faster response
+        Send % (dir = 1) ? "{w down}{w up}" : (dir = 2) ? "{a down}{a up}" : (dir = 3) ? "{s down}{s up}" : "{d down}{d up}"
+        Sleep 50  ; Small delay for better fluidity
+    }
 }
+
+; Press key [1]
+PressOne:
+    Send {1}  ; Press key [1]
+    return
 
 ; Toggle auto-collect buffs and auto-click when pressing "C"
 $c::
-    isAutoCollecting := !isAutoCollecting  ; Toggle the state
-    if isAutoCollecting
-    {
-        ToolTip Auto-collect and Auto-click Enabled
-        SetTimer, AutoCollectBuffs, 500  ; Search for buffs every 500ms
-        SetTimer, RotateCamera, 100  ; Rotate camera while searching
-        SetTimer, AutoClick, 100  ; Enable auto-clicking every 100ms
-    }
-    else
-    {
-        ToolTip Auto-collect and Auto-click Disabled
-        SetTimer, AutoCollectBuffs, Off
-        SetTimer, RotateCamera, Off
-        SetTimer, AutoClick, Off  ; Turn off auto-clicking
-    }
+    isAutoCollecting := !isAutoCollecting  ; Toggle state
+    ToolTip % isAutoCollecting ? "Auto-collect and Auto-click Enabled" : "Auto-collect and Auto-click Disabled"
+    SetTimer, AutoCollectBuffs, % isAutoCollecting ? 250 : "Off"  ; Faster buff collection
+    SetTimer, RotateCamera, % isAutoCollecting ? 50 : "Off"  ; Faster camera rotation
+    SetTimer, AutoClick, % isAutoCollecting ? 50 : "Off"  ; Faster auto-click
+    buffStartTime := A_TickCount  ; Reset the timer
     Sleep 1000
     ToolTip  ; Clear tooltip
     return
 
-; Function to search for buffs and right-click
+; Set boundary from image
+SetBoundaryFromImage(imagePath, tolerance := 100) {
+    ImageSearch, foundX, foundY, 0, 0, A_ScreenWidth, A_ScreenHeight, *%tolerance% %imagePath%
+    if (ErrorLevel = 0) {  ; Image found
+        ; Assuming you know the size of the image
+        imageWidth := 500  ; Replace with actual width
+        imageHeight := 400  ; Replace with actual height
+        
+        ; Set boundary values
+        global boundaryX, boundaryY, boundaryWidth, boundaryHeight  ; Make variables global
+        boundaryX := foundX
+        boundaryY := foundY
+        boundaryWidth := imageWidth
+        boundaryHeight := imageHeight
+        return true
+    }
+    return false
+}
+
+; Function to search for buffs and determine movement direction
 SearchAndClick(imagePath, tolerance := 100) {
     ImageSearch, foundX, foundY, 0, 0, A_ScreenWidth, A_ScreenHeight, *%tolerance% %imagePath%
-    if (ErrorLevel = 0)  ; Image found
-    {
-        MouseMove, foundX, foundY  ; Move mouse to the found location
-        Click right  ; Right-click to collect the buff
-        return true  ; Return true if image was found and clicked
+    if (ErrorLevel = 0) {  ; Image found
+        ; Check if the found image is "notbuff.png"
+        if (imagePath = A_ScriptDir . "\notbuff.png") {
+            return false  ; Ignore this buff
+        }
+        
+        ; Hover over the buff for a maximum of 5 seconds
+        HoverOverBuff(foundX, foundY)
+        Click right  ; Right-click to collect buff
+        return true
     }
-    return false  ; Return false if image was not found
+    return false
+}
+
+; Hover over the buff for up to 5 seconds
+HoverOverBuff(foundX, foundY) {
+    MouseGetPos, initialX, initialY  ; Get the original position
+    MouseMove, foundX, foundY, 0  ; Move to the buff
+    Sleep 5000  ; Wait for 5 seconds or until the buff disappears
+    MouseMove, initialX, initialY, 0  ; Return to original position
 }
 
 ; Logic to auto-collect buffs
 AutoCollectBuffs:
-    ; List of buffs to search for
-    images := ["Buff 1.png", "Buff 2.png"]  ; Add more as needed
+    ; Check for timeout
+    if (A_TickCount - buffStartTime > buffTimeout) {
+        MoveInWASDAndReturn()  ; Move randomly if timeout reached
+        buffStartTime := A_TickCount  ; Reset the timer
+        return
+    }
 
-    ; Loop through each buff image and search
-    for index, image in images
-    {
-        fullPath := A_ScriptDir . "\" . image  ; Build the full path to the image
-        if (SearchAndClick(fullPath))  ; Call the function for each image
-        {
-            ; If a buff is found, stop rotating the camera
-            SetTimer, RotateCamera, Off
-            return  ; Exit if any buff was found and clicked
+    ; Search for boundary image first
+    boundaryImage := "boundary.webp"  ; Image used for boundaries
+    SetBoundaryFromImage(boundaryImage)
+
+    ; Priority image to search for
+    priorityImage := "PriorityBuff.png"
+    images := ["Buff 1.png", "Buff 2.png", "Buff 3.png", "Buff 4.png", "Buff 5.png", "Buff 6.png", "Buff 7.png", "Buff 8.png", "Buff 9.png", "Buff 10.png", "Buff 11.png", "Buff 12.png", "Buff 13.png", "Buff 14.png", "Buff 15.png"]  ; Other buff images
+
+    ; Check if priority buff is found
+    fullPath := A_ScriptDir . "\" . priorityImage
+    if (SearchAndClick(fullPath)) {  ; If priority buff is found
+        isPriorityBuffActive := true  ; Set flag to indicate the priority buff is active
+        SetTimer, RotateCamera, Off
+        buffStartTime := A_TickCount  ; Reset the timer
+        return
+    }
+
+    ; If the priority buff is not found, check if it was previously active
+    if (isPriorityBuffActive) {
+        ; If the priority buff was active and is no longer found, search for other buffs
+        isPriorityBuffActive := false  ; Reset the flag
+        ; Search for other buffs if the priority is not found
+        for index, image in images {
+            fullPath := A_ScriptDir . "\" . image
+            if (SearchAndClick(fullPath)) {  ; If any buff is found
+                SetTimer, RotateCamera, Off
+                buffStartTime := A_TickCount  ; Reset the timer
+                return
+            }
         }
     }
 
-    ; If no buffs are found, move using W, A, S, D, and return to the original position
+    ; If no buffs are found, move randomly
     MoveInWASDAndReturn()
     return
 
-; Function to move in random W, A, S, D directions and return to original position
+; Move in random W, A, S, D directions and return to original position
 MoveInWASDAndReturn() {
-    ; Save the current mouse position
-    MouseGetPos, initialX, initialY
-
-    ; Choose a random movement direction (W, A, S, D)
+    MouseGetPos, initialX, initialY  ; Save current mouse position
     Random, moveDir, 1, 4
     MoveInDirection(moveDir)  ; Move within boundary
-
-    ; After moving, return to the original mouse position
-    MouseMove, initialX, initialY, 50  ; Move back to the original position
+    MouseMove, initialX, initialY, 0  ; Return to original position
 }
 
-; Function to rotate the camera view with a single right-click
+; Rotate camera view with a single right-click
 RotateCamera:
-    ; Simulate a single right-click without holding it down
-    Click right
-    MouseMove, 10, 0, 0, R  ; Move the mouse slightly to the right (adjust as needed)
-    Sleep 10  ; Adjust the speed of rotation
+    Click right  ; Simulate right-click
+    MouseMove, 10, 0, 0, R  ; Move slightly to the right
+    Sleep 5  ; Adjust speed of rotation
     return
 
 ; Stop all actions when pressing "X"
@@ -148,6 +195,7 @@ $x::
     SetTimer, AutoMove, Off
     SetTimer, AutoCollectBuffs, Off
     SetTimer, RotateCamera, Off
+    SetTimer, PressOne, Off
     ToolTip Script Stopped
     Sleep 1000
     ToolTip  ; Clear tooltip
